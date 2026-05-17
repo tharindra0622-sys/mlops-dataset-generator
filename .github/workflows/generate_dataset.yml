@@ -48,7 +48,7 @@ jobs:
           FAILURE_SCENARIO:   none
           MODEL_TYPE:         ${{ matrix.model }}
           TASK_TYPE:          ${{ matrix.task }}
-          DATASET_SIZE:       ${{ fromJSON('[3000,5000,8000,10000]')[github.run_number % 4] }}
+          DATASET_SIZE:       "5000"
           RANDOM_SEED:        ${{ github.run_number }}
           EVAL_THRESHOLD:     "0.60"
           LEARNING_RATE:      "0.1"
