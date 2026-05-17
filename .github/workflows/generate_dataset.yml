@@ -1,0 +1,243 @@
+name: MLOps Dataset Generator
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'   # every 2 hours — ~360 runs/month
+  workflow_dispatch:
+    inputs:
+      num_runs:
+        description: 'Number of runs to generate'
+        required: false
+        default: '20'
+      scenario:
+        description: 'Force a specific scenario (leave empty for random)'
+        required: false
+        default: ''
+
+jobs:
+  # ── Job 1: Success runs ─────────────────────────────────────────────
+  success-run:
+    name: Success — ${{ matrix.model }} / ${{ matrix.task }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        model: [random_forest, gradient_boosting, logistic_regression, decision_tree]
+        task: [classification]
+        include:
+          - os: ubuntu-latest
+            model: ridge
+            task: regression
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MLOps pipeline (success)
+        env:
+          FAILURE_SCENARIO:   none
+          MODEL_TYPE:         ${{ matrix.model }}
+          TASK_TYPE:          ${{ matrix.task }}
+          DATASET_SIZE:       ${{ fromJSON('[3000,5000,8000,10000]')[github.run_number % 4] }}
+          RANDOM_SEED:        ${{ github.run_number }}
+          EVAL_THRESHOLD:     "0.60"
+          LEARNING_RATE:      "0.1"
+          N_ESTIMATORS:       "100"
+          MAX_DEPTH:          "5"
+          TEST_SIZE:          "0.2"
+          MLFLOW_TRACKING_URI: "mlruns"
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_WORKFLOW:    ${{ github.workflow }}
+          GITHUB_EVENT_NAME:  ${{ github.event_name }}
+        run: python scripts/train_pipeline.py
+
+      - name: Upload run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-log-success-${{ matrix.os }}-${{ matrix.model }}-${{ github.run_number }}
+          path: data/run_logs/
+
+  # ── Job 2: Data failure runs ────────────────────────────────────────
+  failure-data:
+    name: Failure (data) — ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - missing_data_file
+          - schema_mismatch
+          - memory_overflow
+        model: [random_forest, gradient_boosting]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MLOps pipeline (data failure)
+        continue-on-error: true
+        env:
+          FAILURE_SCENARIO:   ${{ matrix.scenario }}
+          MODEL_TYPE:         ${{ matrix.model }}
+          TASK_TYPE:          classification
+          DATASET_SIZE:       "5000"
+          RANDOM_SEED:        ${{ github.run_number }}
+          EVAL_THRESHOLD:     "0.70"
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_WORKFLOW:    ${{ github.workflow }}
+          GITHUB_EVENT_NAME:  ${{ github.event_name }}
+        run: python scripts/train_pipeline.py
+
+      - name: Upload run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-log-data-fail-${{ matrix.scenario }}-${{ matrix.model }}-${{ github.run_number }}
+          path: data/run_logs/
+
+  # ── Job 3: Model failure runs ────────────────────────────────────────
+  failure-model:
+    name: Failure (model) — ${{ matrix.scenario }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        scenario:
+          - wrong_hyperparameters
+          - eval_threshold_fail
+          - dependency_conflict
+        model: [random_forest, logistic_regression]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.scenario == 'dependency_conflict' && '3.9' || '3.11' }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MLOps pipeline (model failure)
+        continue-on-error: true
+        env:
+          FAILURE_SCENARIO:   ${{ matrix.scenario }}
+          MODEL_TYPE:         ${{ matrix.model }}
+          TASK_TYPE:          classification
+          DATASET_SIZE:       "5000"
+          RANDOM_SEED:        ${{ github.run_number }}
+          EVAL_THRESHOLD:     ${{ matrix.scenario == 'eval_threshold_fail' && '0.99' || '0.70' }}
+          LEARNING_RATE:      ${{ matrix.scenario == 'wrong_hyperparameters' && '999.0' || '0.1' }}
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_WORKFLOW:    ${{ github.workflow }}
+          GITHUB_EVENT_NAME:  ${{ github.event_name }}
+        run: python scripts/train_pipeline.py
+
+      - name: Upload run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-log-model-fail-${{ matrix.scenario }}-${{ matrix.model }}-${{ matrix.os }}-${{ github.run_number }}
+          path: data/run_logs/
+
+  # ── Job 4: Drift & noise runs ────────────────────────────────────────
+  failure-drift:
+    name: Failure (drift/noise) — drift=${{ matrix.drift }} missing=${{ matrix.missing }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        drift: [true, false]
+        missing: ["0.0", "0.15", "0.35", "0.55"]
+        model: [random_forest, gradient_boosting]
+        exclude:
+          - drift: false
+            missing: "0.0"   # that's just a clean success run
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MLOps pipeline (drift/noise)
+        continue-on-error: true
+        env:
+          FAILURE_SCENARIO:   none
+          MODEL_TYPE:         ${{ matrix.model }}
+          TASK_TYPE:          classification
+          DATASET_SIZE:       "5000"
+          RANDOM_SEED:        ${{ github.run_number }}
+          EVAL_THRESHOLD:     "0.65"
+          INJECT_DRIFT:       ${{ matrix.drift }}
+          INJECT_MISSING:     ${{ matrix.missing }}
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_WORKFLOW:    ${{ github.workflow }}
+          GITHUB_EVENT_NAME:  ${{ github.event_name }}
+        run: python scripts/train_pipeline.py
+
+      - name: Upload run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-log-drift-${{ matrix.model }}-${{ github.run_number }}
+          path: data/run_logs/
+
+  # ── Job 5: Collect all logs into master CSV ─────────────────────────
+  collect-dataset:
+    name: Collect dataset
+    runs-on: ubuntu-latest
+    needs:
+      - success-run
+      - failure-data
+      - failure-model
+      - failure-drift
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download all run logs
+        uses: actions/download-artifact@v4
+        with:
+          path: data/all_logs/
+          pattern: run-log-*
+          merge-multiple: true
+
+      - name: Install pandas
+        run: pip install pandas
+
+      - name: Build master CSV
+        run: python scripts/collect_dataset.py
+
+      - name: Upload master dataset
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlops-dataset-run-${{ github.run_number }}
+          path: data/mlops_dataset.csv
