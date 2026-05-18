@@ -2,7 +2,7 @@ name: MLOps Dataset Generator
 
 on:
   schedule:
-    - cron: '0 */2 * * *'   # every 2 hours — ~360 runs/month
+    - cron: '0 */4 * * *'   # every 2 hours — ~360 runs/month
   workflow_dispatch:
     inputs:
       num_runs:
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, ubuntu-20.04, macos-latest, windows-latest]
         model: [random_forest, gradient_boosting, logistic_regression, decision_tree]
         task: [classification]
         include:
@@ -49,7 +49,7 @@ jobs:
           MODEL_TYPE:         ${{ matrix.model }}
           TASK_TYPE:          ${{ matrix.task }}
           DATASET_SIZE:       "5000"
-          RANDOM_SEED:        ${{ github.run_number }}
+          RANDOM_SEED: ${{ github.run_number }}${{ github.run_attempt }}
           EVAL_THRESHOLD:     "0.60"
           LEARNING_RATE:      "0.1"
           N_ESTIMATORS:       "100"
