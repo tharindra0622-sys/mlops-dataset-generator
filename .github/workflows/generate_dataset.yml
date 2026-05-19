@@ -33,10 +33,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.4.0
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -64,7 +64,7 @@ jobs:
 
       - name: Upload run logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: run-log-success-${{ matrix.os }}-${{ matrix.model }}-${{ github.run_number }}
           path: data/run_logs/
@@ -83,8 +83,8 @@ jobs:
         model: [random_forest, gradient_boosting]
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5.4.0
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -108,7 +108,7 @@ jobs:
 
       - name: Upload run logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: run-log-data-fail-${{ matrix.scenario }}-${{ matrix.model }}-${{ github.run_number }}
           path: data/run_logs/
@@ -128,8 +128,8 @@ jobs:
         model: [random_forest, logistic_regression]
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5.4.0
         with:
           python-version: ${{ matrix.scenario == 'dependency_conflict' && '3.9' || '3.11' }}
           cache: 'pip'
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload run logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: run-log-model-fail-${{ matrix.scenario }}-${{ matrix.model }}-${{ matrix.os }}-${{ github.run_number }}
           path: data/run_logs/
@@ -174,8 +174,8 @@ jobs:
             missing: "0.0"   # that's just a clean success run
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5.4.0
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -201,7 +201,7 @@ jobs:
 
       - name: Upload run logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: run-log-drift-${{ matrix.model }}-${{ github.run_number }}
           path: data/run_logs/
@@ -218,14 +218,14 @@ jobs:
     if: always()
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5.4.0
         with:
           python-version: '3.11'
 
       - name: Download all run logs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.3.0
         with:
           path: data/all_logs/
           pattern: run-log-*
@@ -238,7 +238,7 @@ jobs:
         run: python scripts/collect_dataset.py
 
       - name: Upload master dataset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: mlops-dataset-run-${{ github.run_number }}
           path: data/mlops_dataset.csv
