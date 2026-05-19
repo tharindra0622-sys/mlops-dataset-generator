@@ -21,6 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         os: [ubuntu-latest, ubuntu-20.04, macos-latest, windows-latest]
         model: [random_forest, gradient_boosting, logistic_regression, decision_tree]
